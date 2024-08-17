@@ -1,6 +1,7 @@
 package com.example.deber02_appmoviles
 
 import android.app.Activity
+import android.content.DialogInterface
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -12,6 +13,7 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.ListView
 import android.widget.TextView
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -20,82 +22,73 @@ import androidx.core.view.WindowInsetsCompat
 
 class activity_bcanciones : AppCompatActivity() {
 
-    private var canciones = arrayListOf<CancionEntity>()
-    private var idArtista = 1
-    private var index = -1
-
-    private val callbackFormularioCancion = registerForActivityResult(
+    val callbackFormularioCancion = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            result.data?.let {
-                val cancionModificado = it.getParcelableExtra<CancionEntity>("cancionModificado")
-                val cancionNuevo = it.getParcelableExtra<CancionEntity>("cancionNuevo")
+            if (result.data != null) {
 
-                cancionModificado?.let { cancion ->
-                    canciones[index] = cancion
-                    Memoria.actualizarCancion(cancion)
-                } ?: cancionNuevo?.let { nuevoCancion ->
-                    canciones.add(nuevoCancion)
-                    Memoria.canciones.add(nuevoCancion)
-                    Memoria.agregarCancionArtista(idArtista, nuevoCancion)
-                }
-
-                actualizarListaCanciones()
+                val listView = findViewById<ListView>(R.id.list_canciones)
+                val adaptador = ArrayAdapter(
+                    this,
+                    android.R.layout.simple_list_item_1,
+                    Database.tables!!.getCancionesPorArtista(index)
+                )
+                listView.adapter = adaptador
+                adaptador.notifyDataSetChanged()
             }
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContentView(R.layout.activity_bcanciones)
-
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.cl_canciones)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
 
-        val artista = intent.getParcelableExtra<ArtistaEntity>("artista")
-        Log.d("CancionesActivity", "Artista recibido: $artista")
+        Database.tables = EsqliteHelper(
+            this
+        )
 
-        artista?.let {
-            findViewById<TextView>(R.id.id_artista_nom).text = it.nombre
-            val cancionesArtista = it.canciones ?: mutableListOf()
-            canciones = Memoria.canciones.filter { cancion -> cancionesArtista.contains(cancion.id) } as ArrayList<CancionEntity>
-            idArtista = it.id
-        } ?: run {
-            Log.d("CancionesActivity", "No se recibió ningún artista.")
-        }
-
-        actualizarListaCanciones()
-
-        findViewById<Button>(R.id.id_btn_crear_artista).setOnClickListener {
-            crearCancion()
-        }
-
-        findViewById<Button>(R.id.btn_back).setOnClickListener {
-            startActivity(Intent(this, Artistas::class.java))
-        }
-
-        registerForContextMenu(findViewById(R.id.list_canciones))
-    }
-
-    private fun actualizarListaCanciones() {
+        // Colocar datos en Lista
         val listView = findViewById<ListView>(R.id.list_canciones)
         val adaptador = ArrayAdapter(
             this,
             android.R.layout.simple_list_item_1,
-            canciones
+            Database.tables?.getCancionesPorArtista(index) ?: emptyList()
         )
         listView.adapter = adaptador
         adaptador.notifyDataSetChanged()
+
+        // Uso de Botones
+        val btnCrearCancion = findViewById<Button>(
+            R.id.id_btn_crear_cancion
+        )
+        btnCrearCancion.setOnClickListener {
+            crearCancion(adaptador)
+        }
+        registerForContextMenu(listView)
+
     }
 
-    private fun crearCancion() {
-        val intentCrear = Intent(this, activity_deditar_canciones::class.java)
+    private fun crearCancion(
+        adapter: ArrayAdapter<CancionEntity>
+    ) {
+        val intentCrear = Intent(
+            this,
+            activity_deditar_canciones::class.java
+        )
+
         callbackFormularioCancion.launch(intentCrear)
+
+        adapter.notifyDataSetChanged()
     }
+
+    var index = -1
 
     override fun onCreateContextMenu(
         menu: ContextMenu?, v: View?, menuInfo: ContextMenu.ContextMenuInfo?
@@ -109,33 +102,46 @@ class activity_bcanciones : AppCompatActivity() {
     override fun onContextItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.id_mi_editar_cancion -> {
-                val intentEditar = Intent(this, activity_deditar_canciones::class.java)
+
+                val intentEditar = Intent(
+                    this,
+                    activity_deditar_canciones::class.java
+                )
+                val canciones = Database.tables!!.getCancionesPorArtista(index)
+
                 intentEditar.putExtra("cancion", canciones[index])
                 callbackFormularioCancion.launch(intentEditar)
+
                 true
             }
             R.id.id_mi_eliminar_cancion -> {
-                abrirDialogoEliminar(canciones[index])
+                abrirDialogo(index)
                 true
             }
             else -> super.onContextItemSelected(item)
         }
     }
 
-    private fun abrirDialogoEliminar(cancion: CancionEntity) {
-        AlertDialog.Builder(this)
-            .setTitle("¿Desea eliminar al cancion?")
-            .setPositiveButton("Aceptar") { _, _ ->
-                eliminarCancion(cancion)
-            }
-            .setNegativeButton("Cancelar", null)
-            .show()
-    }
+    private fun abrirDialogo(index: Int) {
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("Eliminar canción?")
+        builder.setPositiveButton(
+            "Aceptar",
+            DialogInterface.OnClickListener { dialog, which ->
+                Database.tables!!.eliminarCancion(index + 1)
 
-    private fun eliminarCancion(cancion: CancionEntity) {
-        canciones.remove(cancion)
-        Memoria.canciones.remove(cancion)
-        Memoria.artistas.find { it.id == idArtista }?.canciones?.remove(cancion.id)
-        actualizarListaCanciones()
+                val listView = findViewById<ListView>(R.id.list_canciones)
+                val adaptador = ArrayAdapter(
+                    this,
+                    android.R.layout.simple_list_item_1,
+                    Database.tables!!.getCancionesPorArtista(index)
+                )
+                listView.adapter = adaptador
+                adaptador.notifyDataSetChanged()
+            }
+        )
+        builder.setNegativeButton("Cancelar", null)
+
+        builder.create().show()
     }
 }

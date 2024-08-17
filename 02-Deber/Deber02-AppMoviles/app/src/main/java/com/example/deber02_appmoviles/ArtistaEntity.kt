@@ -2,13 +2,14 @@ package com.example.deber02_appmoviles
 
 import android.os.Parcel
 import android.os.Parcelable
+import com.example.deber_02.UbicacionConcierto
 
 class ArtistaEntity (
     var id: Int,
     var nombre: String,
     var fechaCreacion: String,
     var ciudad: String,
-    var canciones: MutableList<Int>?
+    var ubicacionConcierto: String
 ): Parcelable {
     constructor(parcel: Parcel) : this(
         parcel.readInt(),
@@ -27,7 +28,7 @@ class ArtistaEntity (
         parcel.writeString(nombre)
         parcel.writeString(fechaCreacion)
         parcel.writeString(ciudad)
-        parcel.writeList(canciones)
+        parcel.writeList(ubicacionConcierto)
     }
 
     override fun describeContents(): Int {

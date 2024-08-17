@@ -1,9 +1,10 @@
-package com.example.deber02_appmoviles
-
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
+import android.widget.Spinner
+import android.widget.ArrayAdapter
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
@@ -11,7 +12,8 @@ import androidx.core.view.WindowInsetsCompat
 
 class activity_deditar_canciones : AppCompatActivity() {
 
-    var id: Int = 1
+    var id: Int = -1
+    var artistaId: Int = -1
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -23,18 +25,35 @@ class activity_deditar_canciones : AppCompatActivity() {
             insets
         }
 
+        // Configurar el Spinner para seleccionar el artista
+        val spinnerArtistas: Spinner = findViewById(R.id.spiner_artistas)
+        val artistas = Database.tables?.getArtistas() ?: listOf()
+        val artistasAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, artistas.map { it.nombre })
+        artistasAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinnerArtistas.adapter = artistasAdapter
+
         val cancion = intent.getParcelableExtra<CancionEntity>("cancion")
 
         if (cancion != null) {
             findViewById<EditText>(R.id.input_nombre_cancion).setText(cancion.nombre)
-            findViewById<EditText>(R.id.input_edad_cancion).setText(cancion.edad.toString())
-            findViewById<EditText>(R.id.input_altura_cancion).setText(cancion.altura.toString())
+            findViewById<EditText>(R.id.input_duracion_cancion).setText(cancion.duracion.toString())
+            findViewById<EditText>(R.id.input_genero_cancion).setText(cancion.genero)
             id = cancion.id
+            artistaId = cancion.artistaId
+            // Seleccionar el artista actual de la canción en el Spinner
+            val artistaIndex = artistas.indexOfFirst { it.id == artistaId }
+            if (artistaIndex != -1) {
+                spinnerArtistas.setSelection(artistaIndex)
+            }
         }
 
-        val guardarBtn = findViewById<Button>(R.id.btn_save_mat)
+        val guardarBtn = findViewById<Button>(R.id.btn_save_cancion)
         guardarBtn.setOnClickListener {
-            if (cancion != null) {
+            // Obtener el artista seleccionado
+            val artistaSeleccionado = artistas[spinnerArtistas.selectedItemPosition]
+            artistaId = artistaSeleccionado.id
+
+            if (id != -1) {
                 responseEditar()
             } else {
                 responseCrear()
@@ -43,43 +62,53 @@ class activity_deditar_canciones : AppCompatActivity() {
     }
 
     private fun responseEditar() {
+        if (!validarDatos()) return
+
         val response = Intent()
-        val nombre = findViewById<EditText>(R.id.input_nombre_cancion).text.toString()
-        val edadStr = findViewById<EditText>(R.id.input_edad_cancion).text.toString()
-        val alturaStr = findViewById<EditText>(R.id.input_altura_cancion).text.toString()
-
-        if (nombre.isNotEmpty() && edadStr.isNotEmpty() && alturaStr.isNotEmpty()) {
-            val edad = edadStr.toIntOrNull() ?: 0
-            val altura = alturaStr.toDoubleOrNull() ?: 0.0
-
-            val cancionModificado = CancionEntity(id, nombre, edad, altura)
-            Memoria.actualizarCancion(cancionModificado)
-
-            response.putExtra("cancionModificado", cancionModificado)
+        try {
+            Database.tables?.actualizarCancion(
+                id,
+                findViewById<EditText>(R.id.input_nombre_cancion).text.toString(),
+                findViewById<EditText>(R.id.input_duracion_cancion).text.toString().toDouble(),
+                findViewById<EditText>(R.id.input_genero_cancion).text.toString(),
+                artistaId
+            )
             setResult(RESULT_OK, response)
             finish()
-        } else {
-            // Mostrar mensaje de error o validación
+        } catch (e: Exception) {
+            Toast.makeText(this, "Error al actualizar la canción: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
     private fun responseCrear() {
         val response = Intent()
 
+        Database.tables?.crearCancion(
+            findViewById<EditText>(R.id.input_nombre_cancion).text.toString(),
+            findViewById<EditText>(R.id.input_duracion_cancion).text.toString().toDouble(),
+            findViewById<EditText>(R.id.input_genero_cancion).text.toString(),
+            artistaId
+        )
+
+        setResult(RESULT_OK, response)
+        finish()
+    }
+
+    private fun validarDatos(): Boolean {
         val nombre = findViewById<EditText>(R.id.input_nombre_cancion).text.toString()
-        val edadStr = findViewById<EditText>(R.id.input_edad_cancion).text.toString()
-        val alturaStr = findViewById<EditText>(R.id.input_altura_cancion).text.toString()
+        val duracion = findViewById<EditText>(R.id.input_duracion_cancion).text.toString()
+        val genero = findViewById<EditText>(R.id.input_genero_cancion).text.toString()
 
-        if (nombre.isNotEmpty() && edadStr.isNotEmpty() && alturaStr.isNotEmpty()) {
-            val edad = edadStr.toIntOrNull() ?: 0
-            val altura = alturaStr.toDoubleOrNull() ?: 0.0
+        if (nombre.isEmpty() || duracion.isEmpty() || genero.isEmpty()) {
+            Toast.makeText(this, "Todos los campos son obligatorios", Toast.LENGTH_SHORT).show()
+            return false
+        }
 
-            val cancionNuevo = CancionEntity(Memoria.idNuevoCancion(), nombre, edad, altura)
+        if (duracion.toDoubleOrNull() == null || duracion.toDouble() <= 0) {
+            Toast.makeText(this, "La duración debe ser un número positivo", Toast.LENGTH_SHORT).show()
+            return false
+        }
 
-            response.putExtra("cancionNuevo", cancionNuevo)
-
-            setResult(RESULT_OK, response)
-            finish()
-}
+        return true
     }
 }

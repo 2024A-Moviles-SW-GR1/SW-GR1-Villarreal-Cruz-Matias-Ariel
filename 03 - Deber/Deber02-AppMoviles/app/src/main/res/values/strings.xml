@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Deber02-AppMoviles</string>
+    <string name="crear" translatable="false">Crear</string>
+    <string name="editar" translatable="false">Editar</string>
+    <string name="eliminar" translatable="false">Eliminar</string>
+    <string name="guardar" translatable="false">Guardar</string>
+    <string name="view_subjects" translatable="false">Ver canciones</string>
+</resources>
