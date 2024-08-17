@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/id_mi_editar_cancion"
+        android:title="@string/editar" />
+    <item
+        android:id="@+id/id_mi_eliminar_cancion"
+        android:title="@string/eliminar"/>
+</menu>
